@@ -1,96 +1,180 @@
-# Metronome
+# Metrônomo Profissional
 
-[![pub package](https://img.shields.io/pub/v/metronome.svg)](https://pub.dev/packages/metronome)
+[English version below]
 
-Efficient, accurate, cross-platform metronome; supports volume, BPM, and audio source settings.
-##
+## Descrição
+Um metrônomo profissional para Flutter com recursos avançados para músicos e educadores musicais.
 
-![Metronome](https://raw.githubusercontent.com/biner88/metronome/main/screenshot/demo2.png)
+## Recursos
 
-## TODO
+### Básicos
+- 🎵 Controle preciso de BPM (30-300)
+- 🎯 Tap tempo para definição intuitiva da velocidade
+- 🔊 Controle de volume (0-100%)
+- 📝 Diferentes fórmulas de compasso (2/4 até 8/4)
+- 🔄 Número configurável de repetições
 
-* [ ] Add support for time signature [#2](https://github.com/biner88/metronome/issues/2)
-* [ ] Add Windows support
-* [ ] Add CallBack function on Tick for web
+### Avançados
+- 🎼 Sons personalizáveis para tempos fortes e fracos
+- ⏭️ Possibilidade de pular batidas específicas
+- 🎯 Subdivisões rítmicas (1-4 subdivisões por tempo)
+- 📈 Progressão automática de BPM
+- 📱 Vibração opcional no primeiro tempo
+- 💾 Sistema de presets para salvar/carregar configurações
+- ⚡ Correção automática de latência
+- 👁️ Feedback visual do andamento
 
-## Quick Start 
+## Como Usar
 
-### Init
-
+### Configuração Básica
 ```dart
 final metronome = Metronome();
-metronome.init('
-    assets/audio/snare.wav', 
-    bpm: 120, 
-    volume: 50,  
-    //When set to true, the music of other apps will stop when the metronome is played. 
-    enableSession: true,
-    enableTickCallback: true,
+await metronome.init(
+  'assets/click.wav',
+  accentedPath: 'assets/accent.wav',
+  bpm: 120,
+  timeSignature: 4,
 );
-```
 
-### Play
+// Iniciar
+metronome.play(120);
 
-```dart
-metronome.play();
-```
-
-### Pause
-
-```dart
-metronome.pause();
-```
-
-### Stop
-
-```dart
+// Parar
 metronome.stop();
 ```
 
-### Volume
-
+### Pular Batidas Específicas
 ```dart
-metronome.getVolume();
-metronome.setVolume(50);
+// Pular segundo e quarto tempos
+metronome.setSkipBeats([1, 3]);
 ```
 
-### BPM
-
+### Progressão Automática de BPM
 ```dart
-metronome.setBPM(120); 
-metronome.getBPM(); 
+// Aumentar 5 BPM a cada 4 compassos até 180 BPM
+metronome.setBpmProgression(
+  increment: 5,
+  loops: 4,
+  maxBpm: 180,
+);
 ```
 
-### get Play state
-
+### Presets
 ```dart
-metronome.isPlaying();
+// Salvar configuração atual
+await metronome.savePreset('Exercício 1');
+
+// Carregar preset
+await metronome.loadPreset('Exercício 1');
+
+// Listar presets
+final presets = await metronome.listPresets();
 ```
 
-### setAudioFile
-
+### Recursos Avançados
 ```dart
-metronome.setAudioFile('assets/audio/snare.wav');
-```
+// Configurar subdivisões
+metronome.setSubdivision(2); // Colcheias
 
-### destroy
+// Habilitar vibração
+metronome.setVibration(true);
 
-```dart
-metronome.destroy();
-```
-
-### Tick callback
-
-```
-metronome.onListenTick((_) {
-    print('tick');
+// Callback para cada batida
+metronome.setTickCallback((isFirstBeat) {
+  print(isFirstBeat ? 'Tempo forte!' : 'Tempo fraco');
 });
 ```
 
-## About Web
+---
 
-Please add the `example/web/app.js` file to index.html under your web. As follows:
+# Professional Metronome
 
-```html
-<script src="app.js" defer></script>
+## Description
+A professional metronome for Flutter with advanced features for musicians and music educators.
+
+## Features
+
+### Basic
+- 🎵 Precise BPM control (30-300)
+- 🎯 Tap tempo for intuitive speed setting
+- 🔊 Volume control (0-100%)
+- 📝 Different time signatures (2/4 to 8/4)
+- 🔄 Configurable number of repetitions
+
+### Advanced
+- 🎼 Customizable sounds for strong and weak beats
+- ⏭️ Ability to skip specific beats
+- 🎯 Rhythmic subdivisions (1-4 subdivisions per beat)
+- 📈 Automatic BPM progression
+- 📱 Optional vibration on first beat
+- 💾 Preset system for saving/loading settings
+- ⚡ Automatic latency correction
+- 👁️ Visual tempo feedback
+
+## How to Use
+
+### Basic Setup
+```dart
+final metronome = Metronome();
+await metronome.init(
+  'assets/click.wav',
+  accentedPath: 'assets/accent.wav',
+  bpm: 120,
+  timeSignature: 4,
+);
+
+// Start
+metronome.play(120);
+
+// Stop
+metronome.stop();
+```
+
+### Skip Specific Beats
+```dart
+// Skip second and fourth beats
+metronome.setSkipBeats([1, 3]);
+```
+
+### Automatic BPM Progression
+```dart
+// Increase 5 BPM every 4 bars up to 180 BPM
+metronome.setBpmProgression(
+  increment: 5,
+  loops: 4,
+  maxBpm: 180,
+);
+```
+
+### Presets
+```dart
+// Save current configuration
+await metronome.savePreset('Exercise 1');
+
+// Load preset
+await metronome.loadPreset('Exercise 1');
+
+// List presets
+final presets = await metronome.listPresets();
+```
+
+### Advanced Features
+```dart
+// Set subdivisions
+metronome.setSubdivision(2); // Eighth notes
+
+// Enable vibration
+metronome.setVibration(true);
+
+// Callback for each beat
+metronome.setTickCallback((isFirstBeat) {
+  print(isFirstBeat ? 'Strong beat!' : 'Weak beat');
+});
+```
+
+## Installation
+Add to your pubspec.yaml:
+```yaml
+dependencies:
+  metronome: ^1.0.0
 ```
