@@ -191,13 +191,54 @@ class Metronome {
         }
 
         if (_currentBeat == 0 && _accentPlayer != null) {
-          await _accentPlayer!.stop();
-          await _accentPlayer!.seek(Duration.zero);
-          _accentPlayer!.play();
+          try {
+            await _accentPlayer!.stop();
+            await _accentPlayer!.seek(Duration.zero);
+            await _accentPlayer!.play();
+          } catch (e) {
+            // Se falhar, tenta recriar o player
+            debugPrint('Recriando accent player após erro: $e');
+            await _accentPlayer!.dispose();
+            _accentPlayer = AudioPlayer();
+            if (_accentPath != null) {
+              if (_accentPath!.startsWith('http')) {
+                await _accentPlayer!.setAudioSource(
+                  AudioSource.uri(Uri.parse(Uri.decodeFull(_accentPath!)), headers: {
+                    'Access-Control-Allow-Origin': '*',
+                  }),
+                  preload: true,
+                );
+              } else {
+                await _accentPlayer!.setAudioSource(
+                  AudioSource.asset(_accentPath!),
+                  preload: true,
+                );
+              }
+              await _accentPlayer!.setVolume(_volume / 100);
+              await _accentPlayer!.play();
+            }
+          }
         } else if (_player != null) {
-          await _player!.stop();
-          await _player!.seek(Duration.zero);
-          _player!.play();
+          try {
+            await _player!.stop();
+            await _player!.seek(Duration.zero);
+            await _player!.play();
+          } catch (e) {
+            // Se falhar, tenta recriar o player
+            debugPrint('Recriando main player após erro: $e');
+            await _player!.dispose();
+            _player = AudioPlayer();
+            await _player!.setAudioSource(
+              _mainPath.startsWith('http') 
+                ? AudioSource.uri(Uri.parse(Uri.decodeFull(_mainPath)), headers: {
+                    'Access-Control-Allow-Origin': '*',
+                  })
+                : AudioSource.asset(_mainPath),
+              preload: true,
+            );
+            await _player!.setVolume(_volume / 100);
+            await _player!.play();
+          }
         }
       }
       
