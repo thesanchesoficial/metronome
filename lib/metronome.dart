@@ -92,10 +92,11 @@ class Metronome {
     _currentLoopCount = 0;
 
     try {      
-      if (mainPath.startsWith('http')) {
+      debugPrint('Inicializando com mainPath: $mainPath');
+      if (mainPath.startsWith('http://') || mainPath.startsWith('https://')) {
         debugPrint('Tentando carregar URL: $mainPath');
         try {
-          await _player!.setUrl(mainPath);
+          await _player!.setAudioSource(AudioSource.uri(Uri.parse(mainPath)));
           debugPrint('URL carregada com sucesso');
         } catch (e) {
           debugPrint('Erro ao carregar URL: $e');
@@ -103,23 +104,23 @@ class Metronome {
         }
       } else {
         debugPrint('Carregando como asset: $mainPath');
-        await _player!.setAsset(mainPath);
+        await _player!.setAudioSource(AudioSource.asset(mainPath));
       }
       await _player!.setVolume(volume / 100);
 
       if (accentedPath != null) {
         debugPrint('Inicializando accentPath: $accentedPath');
-        if (accentedPath.startsWith('http')) {
+        if (accentedPath.startsWith('http://') || accentedPath.startsWith('https://')) {
           debugPrint('Tentando carregar URL de acento: $accentedPath');
           try {
-            await _accentPlayer!.setUrl(accentedPath);
+            await _accentPlayer!.setAudioSource(AudioSource.uri(Uri.parse(accentedPath)));
             debugPrint('URL de acento carregada com sucesso');
           } catch (e) {
             debugPrint('Erro ao carregar URL de acento: $e');
             rethrow;
           }
         } else {
-          await _accentPlayer!.setAsset(accentedPath);
+          await _accentPlayer!.setAudioSource(AudioSource.asset(accentedPath));
         }
         await _accentPlayer!.setVolume(volume / 100);
       }
