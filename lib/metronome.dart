@@ -91,18 +91,33 @@ class Metronome {
     _maxBpm = maxBpm;
     _currentLoopCount = 0;
 
-    try {
-      // Verifica se é URL ou asset
-      if (mainPath.startsWith('http') || mainPath.startsWith('data:')) {
-        await _player!.setUrl(mainPath);
+    try {      
+      if (mainPath.startsWith('http')) {
+        debugPrint('Tentando carregar URL: $mainPath');
+        try {
+          await _player!.setUrl(mainPath);
+          debugPrint('URL carregada com sucesso');
+        } catch (e) {
+          debugPrint('Erro ao carregar URL: $e');
+          rethrow;
+        }
       } else {
+        debugPrint('Carregando como asset: $mainPath');
         await _player!.setAsset(mainPath);
       }
       await _player!.setVolume(volume / 100);
 
       if (accentedPath != null) {
-        if (accentedPath.startsWith('http') || accentedPath.startsWith('data:')) {
-          await _accentPlayer!.setUrl(accentedPath);
+        debugPrint('Inicializando accentPath: $accentedPath');
+        if (accentedPath.startsWith('http')) {
+          debugPrint('Tentando carregar URL de acento: $accentedPath');
+          try {
+            await _accentPlayer!.setUrl(accentedPath);
+            debugPrint('URL de acento carregada com sucesso');
+          } catch (e) {
+            debugPrint('Erro ao carregar URL de acento: $e');
+            rethrow;
+          }
         } else {
           await _accentPlayer!.setAsset(accentedPath);
         }
@@ -110,10 +125,17 @@ class Metronome {
       }
 
       // Pré-carrega os sons
-      await Future.wait([
-        _player!.load(),
-        if (accentedPath != null) _accentPlayer!.load(),
-      ]);
+      debugPrint('Iniciando pré-carregamento dos sons');
+      try {
+        await Future.wait([
+          _player!.load(),
+          if (accentedPath != null) _accentPlayer!.load(),
+        ]);
+        debugPrint('Pré-carregamento concluído com sucesso');
+      } catch (e) {
+        debugPrint('Erro no pré-carregamento: $e');
+        rethrow;
+      }
 
       _isInitialized = true;
     } catch (e) {
