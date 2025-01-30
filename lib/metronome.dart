@@ -94,49 +94,49 @@ class Metronome {
     try {      
       debugPrint('Inicializando com mainPath: $mainPath');
       if (mainPath.startsWith('http://') || mainPath.startsWith('https://')) {
-        debugPrint('Tentando carregar URL: $mainPath');
-        try {
-          await _player!.setAudioSource(AudioSource.uri(Uri.parse(mainPath)));
-          debugPrint('URL carregada com sucesso');
-        } catch (e) {
-          debugPrint('Erro ao carregar URL: $e');
-          rethrow;
-        }
+        final decodedPath = Uri.decodeFull(mainPath);
+        debugPrint('URL decodificada: $decodedPath');
+        await _player!.setAudioSource(
+          AudioSource.uri(Uri.parse(decodedPath), headers: {
+            'Access-Control-Allow-Origin': '*',
+          }),
+          preload: true,
+        );
       } else {
-        debugPrint('Carregando como asset: $mainPath');
-        await _player!.setAudioSource(AudioSource.asset(mainPath));
+        await _player!.setAudioSource(
+          AudioSource.asset(mainPath),
+          preload: true,
+        );
       }
       await _player!.setVolume(volume / 100);
 
       if (accentedPath != null) {
         debugPrint('Inicializando accentPath: $accentedPath');
         if (accentedPath.startsWith('http://') || accentedPath.startsWith('https://')) {
-          debugPrint('Tentando carregar URL de acento: $accentedPath');
-          try {
-            await _accentPlayer!.setAudioSource(AudioSource.uri(Uri.parse(accentedPath)));
-            debugPrint('URL de acento carregada com sucesso');
-          } catch (e) {
-            debugPrint('Erro ao carregar URL de acento: $e');
-            rethrow;
-          }
+          final decodedPath = Uri.decodeFull(accentedPath);
+          debugPrint('URL de acento decodificada: $decodedPath');
+          await _accentPlayer!.setAudioSource(
+            AudioSource.uri(Uri.parse(decodedPath), headers: {
+              'Access-Control-Allow-Origin': '*',
+            }),
+            preload: true,
+          );
         } else {
-          await _accentPlayer!.setAudioSource(AudioSource.asset(accentedPath));
+          await _accentPlayer!.setAudioSource(
+            AudioSource.asset(accentedPath),
+            preload: true,
+          );
         }
         await _accentPlayer!.setVolume(volume / 100);
       }
 
       // Pré-carrega os sons
       debugPrint('Iniciando pré-carregamento dos sons');
-      try {
-        await Future.wait([
-          _player!.load(),
-          if (accentedPath != null) _accentPlayer!.load(),
-        ]);
-        debugPrint('Pré-carregamento concluído com sucesso');
-      } catch (e) {
-        debugPrint('Erro no pré-carregamento: $e');
-        rethrow;
-      }
+      await Future.wait([
+        _player!.load(),
+        if (accentedPath != null) _accentPlayer!.load(),
+      ]);
+      debugPrint('Pré-carregamento concluído com sucesso');
 
       _isInitialized = true;
     } catch (e) {
