@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -5,9 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 class Metronome {
-  static final AudioPlayer _player = AudioPlayer();
-  static final AudioPlayer _accentPlayer = AudioPlayer();
+  AudioPlayer? _player;
+  AudioPlayer? _accentPlayer;
   Timer? _timer;
+  bool _isInitialized = false;
   
   int _beatsPerBar = 4;
   int _currentBeat = 0;
@@ -15,7 +17,7 @@ class Metronome {
   int _maxRepeats = 0;
   bool _isPlaying = false;
   DateTime? _lastTapTime;
-  List<int> _tapIntervals = [];
+  List<int> tapIntervals = [];
   int _currentBpm = 120;
   
   Function(bool isFirstBeat)? _tickCallback;
@@ -36,6 +38,9 @@ class Metronome {
   int _loopsToIncrement = 0;
   int _currentLoopCount = 0;
   int _maxBpm = 300;
+
+  DateTime? _startTime;
+  int _tickCount = 0;
 
   /// Initialize the metronome
   /// ```
@@ -66,6 +71,12 @@ class Metronome {
     int loopsToIncrement = 0,
     int maxBpm = 300,
   }) async {
+    // Limpa recursos anteriores se existirem
+    await dispose();
+    
+    _player = AudioPlayer();
+    _accentPlayer = AudioPlayer();
+    
     _beatsPerBar = timeSignature;
     _maxRepeats = maxRepeats;
     _currentBpm = bpm;
@@ -79,14 +90,38 @@ class Metronome {
     _loopsToIncrement = loopsToIncrement;
     _maxBpm = maxBpm;
     _currentLoopCount = 0;
-    
-    await _player.setAsset(mainPath);
-    await _player.setVolume(volume / 100);
-    
-    if (accentedPath != null) {
-      await _accentPlayer.setAsset(accentedPath);
-      await _accentPlayer.setVolume(volume / 100);
+
+    try {
+      // Verifica se é URL ou asset
+      if (mainPath.startsWith('http') || mainPath.startsWith('data:')) {
+        await _player!.setUrl(mainPath);
+      } else {
+        await _player!.setAsset(mainPath);
+      }
+      await _player!.setVolume(volume / 100);
+
+      if (accentedPath != null) {
+        if (accentedPath.startsWith('http') || accentedPath.startsWith('data:')) {
+          await _accentPlayer!.setUrl(accentedPath);
+        } else {
+          await _accentPlayer!.setAsset(accentedPath);
+        }
+        await _accentPlayer!.setVolume(volume / 100);
+      }
+
+      // Pré-carrega os sons
+      await Future.wait([
+        _player!.load(),
+        if (accentedPath != null) _accentPlayer!.load(),
+      ]);
+
+      _isInitialized = true;
+    } catch (e) {
+      debugPrint('Erro ao inicializar metrônomo: $e');
+      _isInitialized = false;
+      rethrow;
     }
+
   }
 
   /// Set callback for BPM changes
@@ -102,62 +137,94 @@ class Metronome {
     
     if (_isPlaying) {
       _timer?.cancel();
-      // Calcula o intervalo base para o BPM atual
-      final interval = Duration(milliseconds: (60000 / (_currentBpm * _subdivision)).round());
-      _timer = Timer.periodic(interval, _onTick);
+      _startTime = DateTime.now();
+      _tickCount = 0;
+      
+      // Usa um intervalo menor para maior precisão
+      const baseInterval = Duration(milliseconds: 1);
+      _timer = Timer.periodic(baseInterval, (timer) {
+        if (_startTime == null) return;
+        
+        final now = DateTime.now();
+        final expectedInterval = 60000000 / (_currentBpm * _subdivision); // em microssegundos
+        final elapsedMicros = now.difference(_startTime!).inMicroseconds;
+        final expectedTicks = (elapsedMicros / expectedInterval).floor();
+        
+        if (expectedTicks > _tickCount) {
+          _tickCount = expectedTicks;
+          _onTick(timer);
+        }
+      });
     }
   }
 
   Future<void> _onTick(Timer timer) async {
-    // Simplificado para focar na precisão do timing
-    if (!_skipBeats.contains(_currentBeat)) {
-      if (_currentBeat == 0 && _enableVibration) {
-        HapticFeedback.heavyImpact();
-      }
+    if (!_isInitialized) return;
 
-      if (_currentBeat == 0 && _accentPlayer.audioSource != null) {
-        await _accentPlayer.seek(Duration.zero);
-        await _accentPlayer.play();
-      } else {
-        await _player.seek(Duration.zero);
-        await _player.play();
-      }
-    }
-    
-    _tickCallback?.call(_currentBeat == 0);
-    _currentBeat = (_currentBeat + 1) % _beatsPerBar;
-    
-    if (_currentBeat == 0) {
-      if (_maxRepeats > 0) {
-        _repeatCount++;
-        if (_repeatCount >= _maxRepeats) {
-          stop();
-          return;
+    try {
+      if (!_skipBeats.contains(_currentBeat)) {
+        if (_currentBeat == 0 && _enableVibration) {
+          HapticFeedback.heavyImpact();
+        }
+
+        if (_currentBeat == 0 && _accentPlayer != null) {
+          await _accentPlayer!.stop();
+          await _accentPlayer!.seek(Duration.zero);
+          _accentPlayer!.play();
+        } else if (_player != null) {
+          await _player!.stop();
+          await _player!.seek(Duration.zero);
+          _player!.play();
         }
       }
       
-      // Incrementa BPM após número definido de loops
-      if (_bpmIncrement > 0 && _loopsToIncrement > 0) {
-        _currentLoopCount++;
-        if (_currentLoopCount >= _loopsToIncrement) {
-          _currentLoopCount = 0;
-          final newBpm = _currentBpm + _bpmIncrement;
-          if (newBpm <= _maxBpm) {
-            updateBpm(newBpm);
+      _tickCallback?.call(_currentBeat == 0);
+      _currentBeat = (_currentBeat + 1) % _beatsPerBar;
+      
+      if (_currentBeat == 0) {
+        if (_maxRepeats > 0) {
+          _repeatCount++;
+          if (_repeatCount >= _maxRepeats) {
+            stop();
+            return;
+          }
+        }
+        
+        // Incrementa BPM após número definido de loops
+        if (_bpmIncrement > 0 && _loopsToIncrement > 0) {
+          _currentLoopCount++;
+          if (_currentLoopCount >= _loopsToIncrement) {
+            _currentLoopCount = 0;
+            final newBpm = _currentBpm + _bpmIncrement;
+            if (newBpm <= _maxBpm) {
+              updateBpm(newBpm);
+            }
           }
         }
       }
+    } catch (e) {
+      debugPrint('Erro durante tick: $e');
     }
   }
 
+
   /// Start playing at the specified BPM
   Future<void> play(int bpm) async {
-    if (_isPlaying) return;
-    _isPlaying = true;
-    _currentBeat = 0;
-    _repeatCount = 0;
-    await updateBpm(bpm);
+    if (!_isInitialized || _isPlaying) return;
+    
+    try {
+      _isPlaying = true;
+      _currentBeat = 0;
+      _repeatCount = 0;
+      _startTime = null;
+      _tickCount = 0;
+      await updateBpm(bpm);
+    } catch (e) {
+      debugPrint('Erro ao iniciar reprodução: $e');
+      _isPlaying = false;
+    }
   }
+
 
   /// Stop playing
   Future<void> stop() async {
@@ -166,14 +233,22 @@ class Metronome {
     _isPlaying = false;
     _currentBeat = 0;
     _repeatCount = 0;
-    await _player.stop();
-    await _accentPlayer.stop();
+    _startTime = null;
+    _tickCount = 0;
+    
+    try {
+      await _player?.stop();
+      await _accentPlayer?.stop();
+    } catch (e) {
+      debugPrint('Erro ao parar reprodução: $e');
+    }
   }
+
 
   /// Set volume (0-100)
   Future<void> setVolume(int volume) async {
-    await _player.setVolume(volume / 100);
-    await _accentPlayer.setVolume(volume / 100);
+    await _player?.setVolume(volume / 100);
+    await _accentPlayer?.setVolume(volume / 100);
   }
 
   /// Set time signature (beats per bar)
@@ -194,20 +269,20 @@ class Metronome {
     if (_lastTapTime != null) {
       final interval = now.difference(_lastTapTime!).inMilliseconds;
       if (interval < 2000) { // Ignora intervalos muito longos
-        _tapIntervals.add(interval);
-        if (_tapIntervals.length > 3) {
-          _tapIntervals.removeAt(0);
+        tapIntervals.add(interval);
+        if (tapIntervals.length > 3) {
+          tapIntervals.removeAt(0);
         }
         
-        if (_tapIntervals.length >= 2) {
-          final avgInterval = _tapIntervals.reduce((a, b) => a + b) / _tapIntervals.length;
+        if (tapIntervals.length >= 2) {
+          final avgInterval = tapIntervals.reduce((a, b) => a + b) / tapIntervals.length;
           final newBpm = (60000 / avgInterval).round();
           if (newBpm >= 30 && newBpm <= 300) {
             updateBpm(newBpm);
           }
         }
       } else {
-        _tapIntervals.clear();
+        tapIntervals.clear();
       }
     }
     _lastTapTime = now;
@@ -216,7 +291,7 @@ class Metronome {
   /// Reset tap tempo detection
   void resetTap() {
     _lastTapTime = null;
-    _tapIntervals.clear();
+    tapIntervals.clear();
   }
 
   /// Set callback for beat events
@@ -241,9 +316,17 @@ class Metronome {
   /// Clean up resources
   Future<void> dispose() async {
     await stop();
-    await _player.dispose();
-    await _accentPlayer.dispose();
+    try {
+      await _player?.dispose();
+      await _accentPlayer?.dispose();
+      _player = null;
+      _accentPlayer = null;
+      _isInitialized = false;
+    } catch (e) {
+      debugPrint('Erro ao liberar recursos: $e');
+    }
   }
+
 
   /// Define subdivisões por tempo
   void setSubdivision(int subdivision) {
@@ -266,7 +349,10 @@ class Metronome {
       'enableVibration': _enableVibration,
       'mainPath': _mainPath,
       'accentPath': _accentPath,
-      'skipBeats': _skipBeats,
+      'skipBeats': _skipBeats.toList(),
+      'bpmIncrement': _bpmIncrement,
+      'loopsToIncrement': _loopsToIncrement,
+      'maxBpm': _maxBpm,
     };
     await prefs.setString('preset_$name', jsonEncode(preset));
   }
@@ -277,15 +363,19 @@ class Metronome {
     final presetJson = prefs.getString('preset_$name');
     if (presetJson != null) {
       final preset = jsonDecode(presetJson) as Map<String, dynamic>;
+      
+      // Converte skipBeats de List<dynamic> para List<int>
+      final skipBeats = (preset['skipBeats'] as List<dynamic>?)?.map((e) => e as int).toList() ?? [];
+
       await init(
-        preset['mainPath'],
-        accentedPath: preset['accentPath'],
-        bpm: preset['bpm'],
-        timeSignature: preset['timeSignature'],
-        subdivision: preset['subdivision'],
-        volume: preset['volume'],
-        enableVibration: preset['enableVibration'],
-        skipBeats: preset['skipBeats'],
+        preset['mainPath'] as String,
+        accentedPath: preset['accentPath'] as String?,
+        bpm: preset['bpm'] as int,
+        timeSignature: preset['timeSignature'] as int,
+        subdivision: preset['subdivision'] as int,
+        volume: preset['volume'] as int,
+        enableVibration: preset['enableVibration'] as bool,
+        skipBeats: skipBeats,
       );
     }
   }
